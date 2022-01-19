@@ -1,34 +1,106 @@
-class Usuario {
-  constructor(nombre, apellido, libros, mascotas) {
-    this.nombre = nombre;
-    this.apellido = apellido;
-    this.libros = libros || [];
-    this.mascotas = mascotas || [];
-  }
+const fs = require('fs');
 
-  getFullName() {
-    return `${this.nombre} ${this.apellido}`
+class Contenedor {
+  constructor(file) {
+    this.file = file;
   };
 
-  addMascota(mascota) {
-    this.mascotas.push(mascota);
+  save(newObject) {
+    let self = this;
+    fs.promises.readFile(this.file, 'utf-8')
+      .then(function (result) {
+        if (!result) {
+          return fs.promises.appendFile(self.file, `[${JSON.stringify(newObject, null, 2)}]`);
+        };
+        const currentFile = JSON.parse(result);
+        let existingItem = currentFile.some(item => item.title == newObject.title);
+        if (existingItem) return Promise.reject('ITEM ALREADY EXISTS');
+
+        const objectToSave = Object.assign({}, newObject, {
+          id: currentFile.length+1
+        });
+        currentFile.push(objectToSave);
+        fs.promises.writeFile(self.file, JSON.stringify(currentFile, null, 2));
+      })
+      .catch(function (error) {
+        console.log('Error:', error);
+      });
   };
 
-  countMascotas() {
-    return this.mascotas.length;
+  getById(id) {
+    fs.promises.readFile(this.file, 'utf-8')
+      .then(function(result) {
+        if (!result) return Promise.reject('The file is empty');
+
+        const currentFile = JSON.parse(result);
+        let item = currentFile.find(item => item.id == id);
+        if (!item) return Promise.reject(`No item found for id: ${id}`);
+
+        console.log(`This is the item for ${id}:`, item);
+      })
+      .catch(function (error) {
+        console.log('Error:', error);
+      });
   };
 
-  addBook(nombre, autor) {
-    this.libros.push({ nombre: nombre, autor: autor });
+  getAll() {
+    fs.promises.readFile(this.file, 'utf-8')
+      .then(function(result) {
+        if (!result) return Promise.reject('The file is empty');
+        const currentFile = JSON.parse(result);
+        console.log(`File content`, currentFile)
+      })
+      .catch(function (error) {
+        console.log('Error:', error)
+      });
   };
 
-  getBookNames() {
-    let libros = this.libros.map(libro => {
-      return libro.nombre
-    })
-    return libros;
+  deleteById(id) {
+    let self = this;
+    fs.promises.readFile(this.file, 'utf-8')
+      .then(function(result) {
+        if (!result) return Promise.reject('The file is empty');
+        const currentFile = JSON.parse(result);
+        const items = currentFile.filter(item => item.id != id);
+        const reformatedItems = items.map(function (item, index) {
+          return {
+            title:
+            item.title,
+            author: item.author,
+            year: item.year,
+            id: index+1
+          };
+        });
+        fs.promises.writeFile(self.file, JSON.stringify(reformatedItems, null, 2));
+      })
+      .catch(function (error) {
+        console.log('Error:', error);
+      });
   };
+
+  deleteAll() {
+    fs.promises.truncate(this.file, 0)
+      .then(function() {
+        console.log('Success: File is now empty')
+      })
+      .catch(function (error) {
+        console.log('Error:', error)
+      });
+  };  
 };
 
+const initialObject = {
+  title: 1984,
+  author: 'George Orwell',
+  year: 1949,
+  id: 1,
+};
 
-const User = new Usuario('Adrian', 'Makowski', [{ nombre: 'Nunca', autor: '	Ken Follett'},{nombre:'El club de los psicópatas', autor:'John Katzenbach'}], ['Teisco']); 
+const Container = new Contenedor('contenedor.json');
+Container.save(initialObject);
+// Container.save({ title: 'Origen', author: 'Dan Brown', year: 2017 });
+// Container.save(initialObject);
+// Container.getById(3);
+// Container.getById(2);
+// Container.deleteById(1);
+// Container.deleteAll();
